@@ -133,13 +133,15 @@ class MeshToDualPointmap:
 
         _tan_half_fov = tan_half_fov(focal_length, self.sensor_height)
         projection = perspective_matrix(_tan_half_fov)
-        dual_pointmap = self.raster_func(
-            canonical_vertices=canonical_verts,
-            reconstruction_vertices=pose_verts,
-            faces=faces,
-            model_view=model_view,
-            projection=projection,
-        )
+
+        with torch.no_grad():
+            dual_pointmap = self.raster_func(
+                canonical_vertices=canonical_verts,
+                reconstruction_vertices=pose_verts,
+                faces=faces,
+                model_view=model_view,
+                projection=projection,
+            )
 
         if self.scale_targets:
             # Note this NAIVE scaling is not scaling about the object center of mass
