@@ -5,6 +5,11 @@ hydra:
   job_logging:
     root:
       level: ERROR
+wandb:
+  enabled: false
+  dir: ???
+  project: ???
+  tags: []
 
 seed: 42
 resolution: 160

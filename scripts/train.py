@@ -234,7 +234,8 @@ def main(cfg: DictConfig, device: str = "cuda"):
 
     global WANDB_RUN_NAME
     global WANDB_ENABLED
-    WANDB_ENABLED = cfg.wandb.enabled
+    wandb_cfg = cfg.get("wandb", None)
+    WANDB_ENABLED = wandb_cfg is not None and wandb_cfg.enabled
     if WANDB_ENABLED:
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         wandb.init(
@@ -243,12 +244,10 @@ def main(cfg: DictConfig, device: str = "cuda"):
             tags=[str(x) for x in cfg.wandb.tags],
             config=cfg_dict | dict(local_repository=Path(__file__).parent.parent),
             settings=wandb.Settings(code_dir="src"),
-            dir="/work/kaye",
+            dir=cfg.wandb.dir,
         )
 
         WANDB_RUN_NAME = wandb.run.name
-    # else:
-    # WANDB_RUN_NAME =
 
     logger.info(f"Source directory: {get_source_dir()}")
 
