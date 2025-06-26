@@ -4,13 +4,13 @@ Main project repository for DualPM, presented at CVPR 2025!
 
 https://dualpm.github.io
 ```
-@InProceedings{Kaye2025,
-  author = {Ben Kaye and Tomas Jakab and Shangzhe Wu and Christian Rupprecht and Andrea Vedaldi},
-  title = {DualPM: Dual Posed‑Canonical Point Maps for 3D Shape and Pose Reconstruction},
-  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
-  month = {June},
-  year = {2025},
-  pages = {6425--6435}
+@InProceedings{kaye2025dualpm,
+  author    = {Ben Kaye and Tomas Jakab and Shangzhe Wu and Christian Rupprecht and Andrea Vedaldi},
+  title     = {{DualPM}: Dual {Posed-Canonical} Point Maps for {3D} Shape and Pose Reconstruction},
+  booktitle = {Proceedings of the {IEEE/CVF} Conference on Computer Vision and Pattern Recognition ({CVPR})},
+  month     = {June},
+  year      = {2025},
+  pages     = {6425--6435}
 }
 ```
 
