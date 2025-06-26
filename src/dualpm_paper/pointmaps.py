@@ -22,6 +22,7 @@ import torch.optim as opt
 from torch import Tensor
 
 from dualpm_paper.dataset import MeshToDualPointmap, PointmapBatch
+from dualpm_paper.models import ConvUnet, SequentialUnet
 
 logger = logging.getLogger(__name__)
 
