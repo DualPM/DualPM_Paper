@@ -62,7 +62,8 @@ def kabsch_umeyama(
 
     assert a.shape == b.shape, "a,b must have the same shape"
 
-    *_, n, m = a.shape
+    *extra, n, m = a.shape
+    device = a.device
 
     a_mean = a.mean(axis=-2)
     b_mean = b.mean(axis=-2)
@@ -75,18 +76,17 @@ def kabsch_umeyama(
 
     U, D, Vh = torch.linalg.svd(covariance)
 
-    # correct signs, no reflection
-    Signs = torch.diag(
-        [
-            1,
-            1,
-            torch.sign(torch.linalg.det(U) * torch.linalg.det(Vh))
-            if not reflection
-            else 1,
-        ]
-    )
+    def eye():
+        _eye = torch.zeros(*extra, 3, 3, device=device)
+        _eye[..., :, :] = torch.eye(3, device=device)
+        return _eye
 
-    rotation = U @ Signs @ Vh if rotation else torch.eye(3)
+    # correct signs, no reflection
+    Signs = eye()
+    if not reflection:
+        Signs[..., 2, 2] = torch.sign(torch.linalg.det(U) * torch.linalg.det(Vh))
+
+    rotation = U @ Signs @ Vh if rotation else eye()
 
     var_A = (A**2).sum(axis=-1).mean(axis=-1)
     scale_factor = torch.trace(torch.diag(D) @ Signs) / var_A if scale else 1
@@ -268,6 +268,7 @@ def _single_joint_transform_est(
         bone_posed,
         scale=scale,
         reflection=False,
+        rotation=True,
     )
 
     transform = to_transform(scale_factor, rotation, translation)
@@ -308,3 +309,77 @@ def make_lookup(
         return indices[mask], mask
 
     return lookup
+
+
+def reconstruction_to_canonical(
+    reconstruction_predictions: torch.Tensor,
+    canonical_predictions: torch.Tensor,
+    joint_transforms: torch.Tensor,
+    inverse_bind: torch.Tensor,
+    vertex_joints: torch.Tensor,
+    vertex_weights: torch.Tensor,
+    success_mask: torch.Tensor,
+    lookup: callable,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    obtain the reconstruction shape in the canonical space, ready for animations!
+
+    args:
+        reconstruction_predictions: (N, 3)
+        canonical_predictions: (N, 3)
+        joint_transforms: (J, 4, 4) joint transforms
+        inverse_bind: (J, 4, 4) inverse bind matrices
+        vertex_joints: (P, 4) indices of J
+        vertex_weights: (P, 4) weights float
+        success_mask: (J,) boolean mask of the valid joints
+        lookup: callable - lookup function that returns the indices of the closest vertices in the target canonical vertices
+
+    returns:
+        reconstruction_in_canonical: (N, 3) - reconstruction in the canonical space
+        error: (N,) - error between the canonical reconstruction and canonical predictions
+    """
+
+    joint_transforms = joint_transforms @ inverse_bind
+
+    canonical_indices, inlier_mask = get_point_correspondence(
+        canonical_predictions, lookup
+    )
+
+    reconstruction_predictions = reconstruction_predictions[inlier_mask]
+    canonical_predictions = canonical_predictions[inlier_mask]
+
+    rec_joints = vertex_joints[canonical_indices]
+    rec_weights = vertex_weights[canonical_indices]
+
+    joint_success = success_mask[rec_joints]
+    valid = joint_success.any(dim=1)
+
+    rec_weights = rec_weights[valid]
+    rec_joints = rec_joints[valid]
+    reconstruction_predictions = reconstruction_predictions[valid]
+    canonical_predictions = canonical_predictions[valid]
+    joint_success = joint_success[valid]
+
+    rec_weights[~joint_success] = 0.0
+
+    # re-normalize weights
+    sum_weights = rec_weights.sum(dim=-1, keepdim=True)
+    rec_weights = rec_weights / (sum_weights + 1e-8)
+
+    # sum over the joints
+    final_transforms = (
+        joint_transforms[rec_joints] * rec_weights[..., None, None]
+    ).sum(dim=1)
+
+    # get the inverse transform
+    final_transforms = torch.linalg.inv(final_transforms)
+
+    reconstruction_in_canonical = (
+        reconstruction_predictions[:, None, :]
+        @ __transpose(final_transforms[:, :3, :3])
+    )[:, 0] + final_transforms[:, :3, 3]
+
+    canonical_error = reconstruction_in_canonical - canonical_predictions
+    canonical_error = canonical_error.pow(2).sum(dim=-1).sqrt()
+
+    return reconstruction_in_canonical, canonical_error
