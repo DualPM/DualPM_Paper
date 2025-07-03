@@ -51,7 +51,7 @@ python scripts/infer.py
 
 ## Benchmarking
 
-Our main benchmarking code is available at https://github.com/ben-kaye/dualpm-benchmark
+Our main benchmarking code is available at https://github.com/DualPM/AnimodelPoints
 This is a derivative of the Animodel benchmark (https://github.com/tomasjakab/animodel) but configured for point clouds. We refer to it as Animodel Points
 
 PASCAL benchmarking is available in `scripts/pascal.py`.

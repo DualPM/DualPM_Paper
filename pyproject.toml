@@ -17,11 +17,11 @@ dependencies = [
     "dualpm@git+https://github.com/ben-kaye/dualpm_lib.git",
 ]
 optional-dependencies = { "extra" = [
-    "dualpm_benchmark@git+https://github.com/ben-kaye/dualpm-benchmark.git",
+    "animodel_points@git+https://github.com/DualPM/AnimodelPoints.git",
 ] }
 
 requires-python = ">=3.10"
-version = "0.2.0"
+version = "0.2.1"
 
 
 [tool.ruff]
