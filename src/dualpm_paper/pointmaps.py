@@ -279,9 +279,13 @@ class PointmapModule:
 
         if render_on_module:
             res = self.model.resolution
-            self.renderer = MeshToDualPointmap(
-                im_size=(res, res), num_layers=self.num_layers, return_on_cpu=False
-            )
+            try:
+                self.renderer = MeshToDualPointmap(
+                    im_size=(res, res), num_layers=self.num_layers, return_on_cpu=False
+                )
+            except Exception as e:
+                logger.warning(f"Failed to initialize renderer: {e}")
+                self.renderer = None
         else:
             self.renderer = None
 
@@ -373,7 +377,7 @@ class PointmapModule:
             output,
             self.num_layers,
             activate_occupancy=True,
-            mask=mask.to(self.device),
+            mask=mask.to(self.device) if mask is not None else None,
             return_type="pointcloud",
         )
 
