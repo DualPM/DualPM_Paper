@@ -21,7 +21,7 @@ optional-dependencies = { "extra" = [
 ] }
 
 requires-python = ">=3.10"
-version = "0.2.1"
+version = "0.2.2"
 
 
 [tool.ruff]

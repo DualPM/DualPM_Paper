@@ -24,7 +24,7 @@ import nvdiffrast.torch as drt
 import torch
 import torch.utils.data as tud
 from dualpm import render_dual_point_map
-from dualpm.utils import perspective_matrix, tan_half_fov
+from dualpm.utils import perspective_matrix, cot_half_fov
 from einops import rearrange, einsum
 from torch import Tensor
 
@@ -131,8 +131,8 @@ class MeshToDualPointmap:
 
         faces = [f.type(torch.int32) for f in faces]
 
-        _tan_half_fov = tan_half_fov(focal_length, self.sensor_height)
-        projection = perspective_matrix(_tan_half_fov)
+        _cot_half_fov = cot_half_fov(focal_length, self.sensor_height)
+        projection = perspective_matrix(_cot_half_fov)
 
         with torch.no_grad():
             dual_pointmap = self.raster_func(

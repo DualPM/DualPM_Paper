@@ -22,8 +22,7 @@ import torch
 import torch.nn.functional as F
 import yaml
 from einops import rearrange
-from PIL.Image import Image
-from PIL.Image import open as image_open
+from PIL.Image import Image, open as image_open
 from pygltflib import GLTF2
 from torch import Tensor
 
