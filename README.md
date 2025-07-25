@@ -19,6 +19,9 @@
   [University of Oxford](https://www.robots.ox.ac.uk/~vgg/)
 </div>
 
+https://github.com/user-attachments/assets/41ce522e-92b7-463a-9983-48312dadd4be
+
+
 ## 📖 Overview
 
 **DualPM** is a novel approach for 3D shape and pose reconstruction using dual posed-canonical point maps. Dual Point Maps reduce tasks in analysis of deformable objects to mapping an image of an object to its **Dual Point Maps**—a pair of point maps defined in camera space and canonical space. DualPMs are easy to predict with a neural network, enabling effective 3D object reconstruction and other tasks.
