@@ -157,7 +157,22 @@ class MeshToDualPointmap:
 
         return dual_pointmap
 
+    @staticmethod
+    def _to_cuda(x):
+        if isinstance(x, list | tuple):
+            if x and isinstance(x[0], torch.Tensor):
+                return [MeshToDualPointmap._to_cuda(y) for y in x]
+        if isinstance(x, torch.Tensor):
+            return x.cuda()
+
+        return x
+
     def __call__(self, pose_verts, canonical_verts, faces, model_view, focal_length):
+        pose_verts, canonical_verts, faces, model_view, focal_length = (
+            MeshToDualPointmap._to_cuda(x)
+            for x in (pose_verts, canonical_verts, faces, model_view, focal_length)
+        )
+
         return self.calculate_dual_pointmap(
             pose_verts, canonical_verts, faces, model_view, focal_length
         )
