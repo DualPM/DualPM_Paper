@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+import einops
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -28,8 +29,8 @@ def _read_coo_npz(path: Path) -> tuple[np.ndarray, np.ndarray]:
     indices = data["indices"]
     values = data["values"]
 
-    tensor = np.empty(shape, dtype=values.dtype)
-    mask = np.zeros(shape[:-1], dtype=np.bool8)
+    tensor = np.zeros(shape, dtype=values.dtype)
+    mask = np.zeros(shape[:-1], dtype=np.bool_)
 
     if indices.shape[-1] == 3:
         tensor[indices[:, 0], indices[:, 1], indices[:, 2]] = values
@@ -44,8 +45,7 @@ def _read_coo_npz(path: Path) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _read_pointmap_npz(path: Path) -> torch.Tensor:
-    pointmap, points_mask = _read_coo_npz(path)
-    pointmap = torch.from_numpy(pointmap)
+    pointmap, points_mask = (torch.from_numpy(t) for t in _read_coo_npz(path))
     pointmap = F.pad(pointmap, (0, 1), "constant", 0)
     pointmap[..., -1] = points_mask
     return pointmap
@@ -54,7 +54,7 @@ def _read_pointmap_npz(path: Path) -> torch.Tensor:
 def _read_feats_npz(path: Path) -> torch.Tensor:
     feats, feats_mask = (torch.from_numpy(f) for f in _read_coo_npz(path))
 
-    if not feats.is_integer():
+    if feats.is_floating_point():
         return feats
 
     feats = feats.float() / 127 - 1
@@ -104,9 +104,7 @@ class InternetPointmapDataset(tud.Dataset):
         ids = (
             p.stem
             for p in self._points_dir.glob("*.npz")
-            if not exclude_5000s
-            or not p.stem.isnumeric()
-            or int(p.stem) % 5000
+            if not exclude_5000s or not p.stem.isnumeric() or int(p.stem) % 5000
         )
 
         if include_ids or exclude_ids:
@@ -127,12 +125,15 @@ class InternetPointmapDataset(tud.Dataset):
             :, :, : self.num_layers
         ]
 
+        # match the expected shape of the rest of the code.. (NC, H, W)
+        pointmap = einops.rearrange(pointmap, "h w n c -> (n c) h w")
+
         feats, feats_mask = None, None
         rgb_image = None
         input_image = None
 
         if self._feats_dir is not None:
-            feats, feats_mask = _read_feats_npz(self._feats_dir / f"{id_}.npz")
+            feats = _read_feats_npz(self._feats_dir / f"{id_}.npz")
             input_image = feats
 
         else:
@@ -151,3 +152,11 @@ class InternetPointmapDataset(tud.Dataset):
         )
 
         return input_image, pointmap, mask, id_
+
+    def __len__(self) -> int:
+        return len(self.ids)
+
+    @staticmethod
+    def collate_fn(batch: list[tuple]) -> tuple:
+        """Combines mulitple PointmapBatch of different examples into a single PointmapBatch"""
+        return dd.PointmapDataset.collate_fn(batch)

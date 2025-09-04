@@ -94,23 +94,38 @@ def training_loop(
         while num_iters < train_cfg.steps:
             yield from train_loader
 
+    def valloop():
+        if val_loader is None:
+            return
+
+        while num_iters < train_cfg.steps:
+            yield from val_loader
+
     pbar = tqdm(dataloop(), desc="Training..", total=train_cfg.steps)
+    val_iter = valloop()
 
     val_loss = float("inf")
     loss_moving_average = torch.zeros(train_cfg.log_every)
     train_losses = []
     val_losses = []
 
-    save_path = Path(train_cfg.save_path)
-    if WANDB_ENABLED and WANDB_RUN_NAME is not None:
-        save_path = save_path / WANDB_RUN_NAME
-    save_path.mkdir(parents=True, exist_ok=True)
+    no_save = train_cfg.save_path is None
+
+    save_path = None
+    if not no_save:
+        save_path = Path(train_cfg.save_path)
+        if WANDB_ENABLED and WANDB_RUN_NAME is not None:
+            save_path = save_path / WANDB_RUN_NAME
+        save_path.mkdir(parents=True, exist_ok=True)
 
     def step(batch: tuple) -> float:
         if not model.training:
             model.train()
 
         loss = module.training_step(batch)
+
+        if loss.isnan():
+            raise ValueError("Loss is NaN")
 
         loss.backward()
 
@@ -146,9 +161,11 @@ def training_loop(
             )
 
         if val_loader and not num_iters % train_cfg.val_every:
+            val_batch = next(val_iter)
+
             model.eval()
             with torch.no_grad():
-                loss, predictions = module.validation_step(batch)
+                loss, predictions = module.validation_step(val_batch)
                 val_loss = loss.item()
 
                 if WANDB_ENABLED:
@@ -156,7 +173,7 @@ def training_loop(
 
                 val_losses.append((num_iters, val_loss))
 
-        if not num_iters % train_cfg.save_every:
+        if not no_save and not num_iters % train_cfg.save_every:
             torch.save(
                 dict(
                     model_state=model.state_dict(),
@@ -258,10 +275,16 @@ def main(cfg: DictConfig, device: str = "cuda"):
     module = get_module(cfg, device, training=True)
 
     train_loader = hydra.utils.instantiate(cfg.dataloader)
+    val_loader = (
+        hydra.utils.instantiate(cfg.val_loader)
+        if cfg.get("val_loader", None) is not None
+        else None
+    )
 
     training_loop(
         module,
         train_loader,
+        val_loader,
         train_cfg=cfg.train_config,
     )
 

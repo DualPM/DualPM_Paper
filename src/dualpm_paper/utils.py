@@ -164,14 +164,14 @@ def rescale_im_and_mask(
     assert mask.max() <= 1.0, "mask must be in range [0,1]"
 
     # Add 2 dims to mask, drop 1
-    mask = F.interpolate(mask[None, None, :, :], im_shape, mode="nearest")[0]
+    mask = F.interpolate(mask[None, None, :, :].float(), im_shape, mode="bilinear")[0]
 
     mask[mask >= mask_threshold] = 1.0
     mask[mask < mask_threshold] = 0.0
 
     # Add then drop batch dim
     im = rearrange(im, "h w c -> c h w")
-    im = F.interpolate(im[None], im_shape, mode="bilinear")[0]
+    im = F.interpolate(im[None], im_shape, mode="bicubic")[0]
 
     masked_im = torch.mul(mask, im)
     masked_im = rearrange(masked_im, "c h w -> h w c")
