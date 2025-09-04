@@ -69,6 +69,7 @@ class InternetPointmapDataset(tud.Dataset):
         num_layers: int,
         include_ids: list[str] | None = None,
         exclude_ids: list[str] | None = None,
+        exclude_5000s: bool = True,
         **kwargs,
     ):
         if isinstance(root, str):
@@ -99,7 +100,14 @@ class InternetPointmapDataset(tud.Dataset):
                 f"Renders directory {self._render_dir} does not exist"
             )
 
-        ids = (p.stem for p in self._points_dir.glob("*.npz"))
+        # exclude 5000s as they are corrupted..
+        ids = (
+            p.stem
+            for p in self._points_dir.glob("*.npz")
+            if not exclude_5000s
+            or not p.stem.isnumeric()
+            or int(p.stem) % 5000
+        )
 
         if include_ids or exclude_ids:
             ids = set(ids)
@@ -114,7 +122,7 @@ class InternetPointmapDataset(tud.Dataset):
     def __getitem__(self, idx: int):
         id_ = self.ids[idx]
 
-        # load the pointmapå
+        # load the pointmap
         pointmap = _read_pointmap_npz(self._points_dir / f"{id_}.npz")[
             :, :, : self.num_layers
         ]
