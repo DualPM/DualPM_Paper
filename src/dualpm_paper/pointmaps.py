@@ -228,9 +228,12 @@ def layer_occupancy_loss(
         soft_label = 0.0
 
     mask = target_occupancy[:, :, :, [0]]
+
+    clipped_labels = target_occupancy.clamp(soft_label, 1 - soft_label)
+
     loss = mask * F.binary_cross_entropy_with_logits(
         prediction,
-        target_occupancy.clamp(soft_label, 1 - soft_label),
+        clipped_labels,
         reduction="none",
     )
     return loss.sum() / mask.sum() / target_occupancy.shape[-1]

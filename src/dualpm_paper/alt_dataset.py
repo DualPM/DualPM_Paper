@@ -9,7 +9,16 @@ import torch.utils.data as tud
 from PIL import Image
 
 import dualpm_paper.dataset as dd
-from dualpm_paper.utils import rescale_im_and_mask
+from dualpm_paper.utils import (
+    rescale_im_and_mask,
+    GLTF2,
+    process_gltf,
+    OneMeshGltf,
+    read_meta,
+    read_camera,
+)
+from dualpm_paper.skin import quaternion_to_matrix
+from dualpm_paper.skin import skin_mesh
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +55,6 @@ def _read_coo_npz(path: Path) -> tuple[np.ndarray, np.ndarray]:
 
 def _read_pointmap_npz(path: Path) -> torch.Tensor:
     pointmap, points_mask = (torch.from_numpy(t) for t in _read_coo_npz(path))
-    pointmap = F.pad(pointmap, (0, 1), "constant", 0)
-    pointmap[..., -1] = points_mask
     return pointmap
 
 
@@ -61,7 +68,7 @@ def _read_feats_npz(path: Path) -> torch.Tensor:
     return feats
 
 
-class InternetPointmapDataset(tud.Dataset):
+class DualPmDataset(tud.Dataset):
     def __init__(
         self,
         root: str | Path,
@@ -77,13 +84,8 @@ class InternetPointmapDataset(tud.Dataset):
 
         self.root = root
         self.resolution = image_size
+        self.image_size = (image_size, image_size)
         self.num_layers = num_layers
-
-        self._points_dir = self.root / f"pointmaps_{self.resolution}"
-        if not self._points_dir.exists():
-            raise FileNotFoundError(
-                f"Points directory {self._points_dir} does not exist"
-            )
 
         self._feats_dir = self.root / "features"
         if not self._feats_dir.exists():
@@ -102,8 +104,8 @@ class InternetPointmapDataset(tud.Dataset):
 
         # exclude 5000s as they are corrupted..
         ids = (
-            p.stem
-            for p in self._points_dir.glob("*.npz")
+            p.stem.split("_rgb")[0]
+            for p in self._render_dir.glob("*_rgb.png")
             if not exclude_5000s or not p.stem.isnumeric() or int(p.stem) % 5000
         )
 
@@ -116,6 +118,43 @@ class InternetPointmapDataset(tud.Dataset):
 
         self.ids = sorted(ids)
         self.collate_fn = dd.PointmapDataset.collate_fn
+
+    def _read_images(self, file_id: str) -> tuple[torch.Tensor, torch.Tensor]:
+        if self._feats_dir is not None:
+            feats = _read_feats_npz(self._feats_dir / f"{file_id}.npz")
+            input_image = feats
+
+        else:
+            rgb_image = torch.from_numpy(
+                np.array(Image.open(self._render_dir / f"{file_id}_rgb.png"))
+            )
+
+            input_image = rgb_image
+
+        mask = torch.from_numpy(
+            np.array(Image.open(self._mask_dir / f"{file_id}_mask.png"))
+        )
+        input_image, mask = rescale_im_and_mask(
+            input_image, mask, (self.resolution, self.resolution)
+        )
+        return input_image, mask
+
+    @staticmethod
+    def collate_fn(batch: list[tuple]) -> tuple:
+        """Combines mulitple PointmapBatch of different examples into a single PointmapBatch"""
+        return dd.PointmapDataset.collate_fn(batch)
+
+
+class RasteredDataset(DualPmDataset):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._points_dir = self.root / f"pointmaps_{self.resolution}"
+        if not self._points_dir.exists():
+            raise FileNotFoundError(
+                f"Points directory {self._points_dir} does not exist"
+            )
+        self.render_at_load = False
 
     def __getitem__(self, idx: int):
         id_ = self.ids[idx]
@@ -132,31 +171,114 @@ class InternetPointmapDataset(tud.Dataset):
         rgb_image = None
         input_image = None
 
-        if self._feats_dir is not None:
-            feats = _read_feats_npz(self._feats_dir / f"{id_}.npz")
-            input_image = feats
-
-        else:
-            rgb_image = torch.from_numpy(
-                np.array(Image.open(self._render_dir / f"{id_}_rgb.png"))
-            )
-
-            input_image = rgb_image
-
-        mask = torch.from_numpy(
-            np.array(Image.open(self._mask_dir / f"{id_}_mask.png"))
-        )
-
-        input_image, mask = rescale_im_and_mask(
-            input_image, mask, (self.resolution, self.resolution)
-        )
+        input_image, mask = self._read_images(id_)
 
         return input_image, pointmap, mask, id_
 
     def __len__(self) -> int:
         return len(self.ids)
 
-    @staticmethod
-    def collate_fn(batch: list[tuple]) -> tuple:
-        """Combines mulitple PointmapBatch of different examples into a single PointmapBatch"""
-        return dd.PointmapDataset.collate_fn(batch)
+
+def _read_shape(path: Path) -> OneMeshGltf:
+    gltf = GLTF2().load(path)
+    return process_gltf(gltf)
+
+
+def _transpose(x: torch.Tensor) -> torch.Tensor:
+    return einops.rearrange(x, "... c r -> ... r c")
+
+
+def _read_pose(path: Path) -> torch.Tensor:
+    """
+    read (num joints, 7)
+    returns (num joints, 4, 4) as col major transforms
+    """
+
+    data = np.load(path)
+    quat, pos = torch.from_numpy(data["poses"]).split([4, 3], dim=-1)
+    rotmat = quaternion_to_matrix(quat)
+
+    transform = torch.zeros(
+        *quat.shape[:-1], 4, 4, device=quat.device, dtype=quat.dtype
+    )
+    transform[..., :3, :3] = rotmat
+    transform[..., :3, 3] = pos
+    transform[..., 3, 3] = 1
+    return transform
+
+
+class RasterizeDataset(DualPmDataset):
+    def __init__(self, root: str | Path, image_size: int, num_layers: int, **kwargs):
+        super().__init__(root, image_size, num_layers)
+        self.shape_root = self.root / "shapes"
+        self.shapes = {
+            p.name: _read_shape(p / f"{p.stem}_shape.gltf")
+            for p in self.shape_root.iterdir()
+        }
+        self.render_at_load = kwargs.get("render_at_load", False)
+
+    def apply_pose(self, pose: torch.Tensor, shape: OneMeshGltf) -> OneMeshGltf:
+        shape.local_joint_transforms = _transpose(pose)
+
+        verts, global_joint_transforms, *_ = skin_mesh(shape)
+        return verts, global_joint_transforms
+
+    def _get_render_args(self, file_id: str) -> dict:
+        pose = _read_pose(self.root / "poses" / f"{file_id}_pose.npz")
+        meta = read_meta(self.root / "metadata" / f"{file_id}_metadata.txt")
+
+        shape_id = meta["model_name"]
+        focal_length = torch.tensor(meta["focal_length"], dtype=torch.float32)
+
+        model = self.shapes[shape_id]
+        view_matrix, *_ = read_camera(
+            (self.root / "cameras" / f"{file_id}_camera.txt").open().read()
+        )
+        faces = model.faces
+
+        view_verts, global_joint_transforms = self.apply_pose(pose, model)
+
+        return (
+            view_verts.to(torch.float32),
+            model.vertices.to(torch.float32),
+            faces,
+            view_matrix,
+            focal_length,
+        )
+
+    def __getitem__(self, idx: int):
+        file_id = self.ids[idx]
+
+        view_verts, canonical_verts, faces, view_matrix, focal_length = (
+            self._get_render_args(file_id)
+        )
+
+        render_args = dict(
+            pose_verts=view_verts,
+            canonical_verts=canonical_verts,
+            faces=faces,
+            model_view=view_matrix,
+            focal_length=focal_length,
+        )
+
+        model_targets = None
+        if self.render_at_load:
+            model_targets = einops.rearrange(
+                self.renderer(**{k: v[None] for k, v in render_args.items()}),
+                "b h w n c-> b (n c) h w",
+            )
+
+            render_args = None
+
+        input_image, mask = self._read_images(file_id)
+
+        return (
+            input_image,
+            model_targets,
+            mask,
+            file_id,
+            render_args,
+        )
+
+    def __len__(self) -> int:
+        return len(self.ids)
