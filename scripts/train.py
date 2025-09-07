@@ -183,6 +183,9 @@ def training_loop(
                 save_path / f"weights_{num_iters}.pth",
             )
 
+        if num_iters >= train_cfg.steps:
+            break
+
     return train_losses, val_losses
 
 
