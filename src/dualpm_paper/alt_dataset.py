@@ -17,6 +17,8 @@ from dualpm_paper.utils import (
     read_meta,
     read_camera,
     read_fuse_image,
+    read_mask,
+    read_image,
 )
 from dualpm_paper.skin import quaternion_to_matrix
 from dualpm_paper.skin import skin_mesh
@@ -151,6 +153,7 @@ class RasteredDataset(DualPmDataset):
     dataset to be used if you pre-raster the pointmaps
     using scripts/raster_pointmaps.py
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -291,3 +294,75 @@ class RasterizeDataset(DualPmDataset):
 
     def __len__(self) -> int:
         return len(self.ids)
+
+
+class TestDataset(tud.Dataset):
+    def __init__(
+        self,
+        image_dir: Path | None,
+        mask_dir: Path,
+        feat_dir: Path,
+        image_size: tuple[int, int],
+        include_ids: list[str] | None = None,
+        exclude_ids: list[str] | None = None,
+    ):
+        self.image_dir = Path(image_dir) if image_dir is not None else None
+        self.mask_dir = Path(mask_dir)
+        self.feat_dir = Path(feat_dir) if feat_dir is not None else None
+
+        if isinstance(image_size, int):
+            image_size = (image_size, image_size)
+        self.image_size = image_size
+        self.ids = self._find_ids(include_ids, exclude_ids)
+
+    def _find_ids(
+        self, include_ids: list[str] | None = None, exclude_ids: list[str] | None = None
+    ):
+        image_ids = None
+        feat_ids = None
+        if self.image_dir is not None:
+            image_ids = set(
+                p.stem.split("_rgb")[0] for p in self.image_dir.glob("*_rgb.png")
+            )
+        if self.feat_dir is not None:
+            feat_ids = set(
+                p.stem.split("_feat")[0] for p in self.feat_dir.glob("*_feat.png")
+            )
+        ids = set(p.stem.split("_mask")[0] for p in self.mask_dir.glob("*_mask.png"))
+
+        if image_ids is not None:
+            ids &= image_ids
+        if feat_ids is not None:
+            ids &= feat_ids
+        if include_ids:
+            ids &= set(include_ids)
+        if exclude_ids:
+            ids -= set(exclude_ids)
+
+        return sorted(ids)
+
+    def __len__(self) -> int:
+        return len(self.ids)
+
+    def __getitem__(self, idx: int):
+        file_id = self.ids[idx]
+        if self.image_dir is not None:
+            image = read_image(
+                (self.image_dir / f"{file_id}_rgb.png").open("rb").read(),
+            )
+
+        feat = read_fuse_image(
+            (self.feat_dir / f"{file_id}_feat.png").open("rb").read()
+        )
+        mask = read_mask((self.mask_dir / f"{file_id}_mask.png").open("rb").read())
+
+        feat, mask = rescale_im_and_mask(feat, mask, self.image_size)
+
+        return file_id, image, mask, feat
+
+    @staticmethod
+    def collate_fn(batch: list[tuple]) -> tuple:
+        file_ids, images, masks, feats = list(zip(*batch, strict=True))
+        images = torch.stack(images) if images[0] is not None else None
+        masks, feats = torch.stack(masks), torch.stack(feats)
+        return file_ids, images, masks, feats

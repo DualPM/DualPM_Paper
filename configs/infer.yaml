@@ -1,0 +1,46 @@
+model:
+  _target_: dualpm_paper.models.SequentialUnet
+  resolution: ${resolution}
+  in_channels: 64
+  image_conditioning_stage2: false
+  model_channels: 128
+  detach_conditioning: true
+  num_layers: 4
+  channels_per_layer: 8
+  model_overrides:
+    num_blocks: 2
+    attn_resolutions:
+      - 16
+
+module:
+  _target_: dualpm_paper.pointmaps.PointmapModule
+  render_on_module: false
+  soft_label: 0.01
+  model: ${model}
+
+# set the weight path here!!
+weights_path: ???
+# set the output dir here!!
+output_dir: ???
+feat_dir: ???
+mask_dir: ???
+confidence_threshold: 2.0
+device: cuda
+batch_size: 32
+resolution: 160
+
+dataset:
+  _target_: dualpm_paper.alt_dataset.TestDataset
+  image_dir: null # optional
+  mask_dir: ${mask_dir}
+  feat_dir: ${feat_dir}
+  image_size: ${resolution}
+  include_ids: null
+  exclude_ids: null
+
+dataloader:
+  _target_: torch.utils.data.DataLoader
+  dataset: ???
+  batch_size: ${batch_size}
+  num_workers: 4
+  prefetch_factor: 2
