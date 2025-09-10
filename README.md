@@ -36,6 +36,10 @@ cd DualPM_Paper
 pip install (-e) .
 ```
 
+## 📚 Downloads
+
+See `DOWNLOAD.md`.
+
 ## 📚 Usage
 
 We provide a separate library, [dualpm_lib](https://github.com/ben-kaye/dualpm_lib), for computing Dual Point Maps, which is automatically installed and is a thin wrapper built upon [nvdiffrast](https://github.com/NVlabs/nvdiffrast).
@@ -56,7 +60,7 @@ python scripts/train.py
 
 ### Inference
 
-Inference requires our [feature extraction code](https://github.com/ben-kaye/dpm-extractor2/tree/py39) (a thin wrapper of [sd-dino](https://github.com/Junyi42/sd-dino)) to obtain the ODISE-DINO features. This must be computed offline as the models are large.
+Inference requires our [feature extraction code](https://github.com/DualPM/canon) (a thin wrapper of [sd-dino](https://github.com/Junyi42/sd-dino)) to obtain the ODISE-DINO features. This must be computed offline as the models are large.
 
 Complete the feature extraction then use our provided script to obtain predictions:
 
@@ -68,7 +72,6 @@ python scripts/infer.py
 
 Our main benchmarking code is available at [AnimodelPoints](https://github.com/DualPM/AnimodelPoints). This is a derivative of the [Animodel benchmark](https://github.com/tomasjakab/animodel) but configured for point clouds.
 
-PASCAL benchmarking is available in `scripts/pascal.py`.
 
 ## 📄 Citing
 
