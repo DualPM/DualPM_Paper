@@ -16,6 +16,7 @@ from dualpm_paper.utils import (
     OneMeshGltf,
     read_meta,
     read_camera,
+    read_fuse_image,
 )
 from dualpm_paper.skin import quaternion_to_matrix
 from dualpm_paper.skin import skin_mesh
@@ -121,7 +122,7 @@ class DualPmDataset(tud.Dataset):
 
     def _read_images(self, file_id: str) -> tuple[torch.Tensor, torch.Tensor]:
         if self._feats_dir is not None:
-            feats = _read_feats_npz(self._feats_dir / f"{file_id}.npz")
+            feats = read_fuse_image(self._feats_dir / f"{file_id}_feat.png")
             input_image = feats
 
         else:
@@ -146,6 +147,10 @@ class DualPmDataset(tud.Dataset):
 
 
 class RasteredDataset(DualPmDataset):
+    """
+    dataset to be used if you pre-raster the pointmaps
+    using scripts/raster_pointmaps.py
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -208,6 +213,10 @@ def _read_pose(path: Path) -> torch.Tensor:
 
 
 class RasterizeDataset(DualPmDataset):
+    """
+    standard dataset, returns models to be rendered
+    """
+
     def __init__(self, root: str | Path, image_size: int, num_layers: int, **kwargs):
         super().__init__(root, image_size, num_layers)
         self.shape_root = self.root / "shapes"

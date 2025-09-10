@@ -1,7 +1,7 @@
 ## Downloading the dataset
 
 This dataset is a derivate of the Animodel https://github.com/tomasjakab/animodel
-It's available here: https://www.robots.ox.ac.uk/~vgg/data/
+It's available here: https://www.robots.ox.ac.uk/~vgg/research/dualpm/#section-downloads
 
 
 Verification: Test that the SHA512 matches the provided `SHA512SUMS`
