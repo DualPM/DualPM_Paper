@@ -60,7 +60,7 @@ python scripts/train.py
 
 ### Inference
 
-Inference requires our [feature extraction code](https://github.com/DualPM/canon) (a thin wrapper of [sd-dino](https://github.com/Junyi42/sd-dino)) to obtain the ODISE-DINO features. This must be computed offline as the models are large.
+Inference requires our [feature extraction code](https://github.com/DualPM/dualpm_features) (a thin wrapper of [sd-dino](https://github.com/Junyi42/sd-dino)) to obtain the ODISE-DINO features. This must be computed offline as the models are large.
 
 Complete the feature extraction then use our provided script to obtain predictions:
 
