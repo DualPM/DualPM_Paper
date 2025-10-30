@@ -40,6 +40,10 @@ pip install (-e) .
 
 See `DOWNLOAD.md`.
 
+## 📚 Weights / Hugging face automodel for the decoder
+
+[huggingface/benkaye/dualpm](https://huggingface.co/benkaye/dualpm)
+
 ## 📚 Usage
 
 We provide a separate library, [dualpm_lib](https://github.com/ben-kaye/dualpm_lib), for computing Dual Point Maps, which is automatically installed and is a thin wrapper built upon [nvdiffrast](https://github.com/NVlabs/nvdiffrast).
