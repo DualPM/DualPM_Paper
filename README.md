@@ -40,7 +40,7 @@ pip install (-e) .
 
 See `DOWNLOAD.md`.
 
-## 📚 Weights / Hugging face automodel for the decoder
+## 🏋️ Weights / Hugging face automodel for the decoder
 
 [huggingface/benkaye/dualpm](https://huggingface.co/benkaye/dualpm)
 
