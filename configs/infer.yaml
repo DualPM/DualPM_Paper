@@ -40,7 +40,7 @@ dataset:
 
 dataloader:
   _target_: torch.utils.data.DataLoader
-  dataset: ???
+  dataset: ${dataset}
   batch_size: ${batch_size}
   num_workers: 4
   prefetch_factor: 2

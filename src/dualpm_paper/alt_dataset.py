@@ -346,6 +346,7 @@ class TestDataset(tud.Dataset):
 
     def __getitem__(self, idx: int):
         file_id = self.ids[idx]
+        image = None
         if self.image_dir is not None:
             image = read_image(
                 (self.image_dir / f"{file_id}_rgb.png").open("rb").read(),
